@@ -1,0 +1,27 @@
+- name: "[Kubernetes] - Download k3s installer"
+  get_url:
+    url: "https://get.k3s.io" 
+    dest: "/tmp/k3s.sh"
+
+- name: "[Kubernetes] - Install k3s"
+  script: "/tmp/k3s.sh"
+  when: inventory_hostname == "node1"
+
+- name: "[Kubernetes] - Fetch k3s token from master"
+  become: true
+  slurp:
+    src: "/var/lib/rancher/k3s/server/node-token"
+  register: k3s_token
+  when: inventory_hostname == "node1"
+
+- name: "[Kubernetes] - Set k3s token fact"
+  set_fact:
+    k3s_token: "{{ k3s_token.content | b64decode }}"
+  when: inventory_hostname == "node1"
+
+- name: "[Kubernetes] - Join k3s workers to the cluster"
+  script: "/tmp/k3s.sh {{ k3s_token }}"
+  environment:
+    K3S_URL: "https://{{ hostvars['node1']['ansible_host'] }}:6443"
+    K3S_TOKEN: "{{ hostvars['node1']['k3s_token'] }}"
+  when: inventory_hostname != "node1"
